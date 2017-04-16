@@ -56,7 +56,7 @@
   ## optional
   var_photo_path="/home/david/choucroutage/MySave/desktop/pic/green_reduced.jpg"
 
-check_card_is_here(){
+  check_card_is_here(){
  ## ensure openpgp card is readable
   ## exit the whole sript if not
   #
@@ -99,19 +99,19 @@ gen_main_key(){
   printer    "-->> Generating main keyring: a SC keypair and E keypair ... " 
   touch gen_key_script         # creating file to gen key in gpg batch mode
   echo " 
-    Key-Type:         $var_key_type 
-    Key-Usage:        sign cert
-    Key-Length:       $var_key_lenght
-    Subkey-Type:      $var_key_type
-    Subkey-Usage:     encrypt
-    Subkey-Length:    $var_key_lenght
-    Name-Real:        $var_name
-    Name-Comment:     $var_comment
-    Name-Email:       $var_mail
-    Keyserver:        $var_web_path
-    Expire-Date:      $var_expiracy
-    Passphrase:       $var_pass_poem
-    Preferences:      $var_pref
+  Key-Type:         $var_key_type 
+  Key-Usage:        sign cert
+  Key-Length:       $var_key_lenght
+  Subkey-Type:      $var_key_type
+  Subkey-Usage:     encrypt
+  Subkey-Length:    $var_key_lenght
+  Name-Real:        $var_name
+  Name-Comment:     $var_comment
+  Name-Email:       $var_mail
+  Keyserver:        $var_web_path
+  Expire-Date:      $var_expiracy
+  Passphrase:       $var_pass_poem
+  Preferences:      $var_pref
   " > gen_key_script  # creating SC and E keys
   gpg2 --batch --full-gen-key gen_key_script  &> /dev/null 
   #  gpg2 --list-only --list-packets < *.gpg
@@ -143,7 +143,13 @@ get_key_SC_fpr(){
     printer $key_SC_fpr, $key_SC_grp, $key_SC_uid, $key_E_fpr, $key_E_grp
     printer
     exit 1  
-    else
+  else
+    printer ""
+    printer "Keyring after main keys generation:  " 
+    printf "$(gpg2 --with-keygrip -k  --no-verbose $var_mail) \n"                    >> gen_key_report
+    printer " keyring for $var_mail  uid: $key_SC_uid"
+    printer "fingerprint and grip key SC: $key_SC_fpr, $key_SC_grp"
+    printer "fingerprint and grip key E : $key_E_fpr, $key_E_grp"
     printer "OK"     
   fi
   printer "Done."
@@ -152,15 +158,8 @@ publish_key_SC_fpr(){
  ## 
   #
   printer 
-  printer    "-->> Publish keyring: a SC keypair and a E keypair ... " 
+  printer    "-->> Publishing master keyring: a SC keypair and a E keypair ... " 
   # report
-  printer "$ Keyring after main keys generation:  " 
-  printer " keyring for $var_mail  uid: $key_SC_uid"
-  printer "fingerprint and grip key SC: $key_SC_fpr, $key_SC_grp"
-  printer "fingerprint and grip key E: $key_E_fpr, $key_E_grp"
-  printf "$ $(gpg2 --with-keygrip -k  --no-verbose $var_mail) \n"                    >> gen_key_report
-  printer $(ls -al | grep priv.keys.txt)
-  printer $(ls -al | grep pub.main.txt)
   # export to file
   gpg2 --no-verbose --export             --armor --yes $key_SC_fpr > pub.main.txt            
   gpg2 --no-verbose --export-secret-key  --armor --yes $key_SC_fpr > priv.keys.txt            
@@ -179,6 +178,9 @@ add_photo(){
   printer  "-->> Adding photo ... " 
   local cmd="addphoto\n$var_photo_path\nsave"
   echo -e $cmd | gpg2  --command-fd 0 --status-fd 2 --edit-key $key_SC_fpr
+
+  printer  "$(gpg2  --no-verbose -k $var_mail | grep -A1 $var_mail)"
+
   printer "Done."
 }
 gen_sub_keys(){
@@ -190,8 +192,7 @@ gen_sub_keys(){
   echo $var_pass_poem | gpg2 --no-verbose --pinentry-mode loopback --batch --no-tty --yes --passphrase-fd 0 --quick-addkey --passphrase '' $key_SC_fpr rsa$var_key_lenght sign 1y    &> /dev/null # gpg2 --quick-addkey $key_SC_fpr rsa$var_key_lenght sign 1y
   echo $var_pass_poem | gpg2 --no-verbose --pinentry-mode loopback --batch --no-tty --yes --passphrase-fd 0 --quick-addkey --passphrase '' $key_SC_fpr rsa$var_key_lenght encrypt 1y &> /dev/null   # gpg2 --quick-addkey $key_SC_fpr rsa$var_key_lenght encrypt 1y
   echo $var_pass_poem | gpg2 --no-verbose --pinentry-mode loopback --batch --no-tty --yes --passphrase-fd 0 --quick-addkey --passphrase '' $key_SC_fpr rsa$var_key_lenght auth 1y    &> /dev/null # gpg2 --quick-addkey $key_SC_fpr rsa$var_key_lenght auth 1y
-  echo "Keyring after subkeys generation: "  >> gen_key_report
-  echo "$ gpg2 -k $var_name \n$ $(gpg2 -k $var_name) "          >> gen_key_report
+  printer "Export keyring to pdf: " 
   gpg2 --export $key_SC_fpr | paperkey --output-type raw | dmtxwrite -e 8 -f PDF > pub.ring.pdf
   printer  "Done."
 }
@@ -205,14 +206,14 @@ mv_subkeys_to_card(){
   echo -e $cmd | gpg2 --no-verbose --command-fd 0 --status-fd 2 --edit-key $key_SC_fpr &> /dev/null
   printer  "Done."
 }
-rm_main_encryption_public_key(){
+rm_master_keyring_encryption_key(){
  ## removing master key from keyring	
   #
   printer
   printer  "-- >> main encryption public key removal:"
-  local cmd="key $key key_E_fpr \ndelkey\ny\nsave\n"
+  local cmd="key 1\ndelkey\ny\nsave\n"
   echo -e $cmd | gpg2 --command-fd 0 --status-fd 2 --edit-key $key_SC_fpr 
-  echo $(gpg2 -K) >> gen_key_report
+  echo "$(gpg2 -K)" >> gen_key_report
   printer "Done."
 }
 get_subkeys_id(){
@@ -226,34 +227,38 @@ get_subkeys_id(){
   subkey_S_fpr=$(echo $subkeys_edit | awk '{print $2}')
   subkey_E_fpr=$(echo $subkeys_edit | awk '{print $3}')
   subkey_A_fpr=$(echo $subkeys_edit | awk '{print $4}')
-  subkeys_edit=$(gpg2 --no-verbose --with-colons --with-keygrip -k $var_mail | grep -A12 $var_mail | grep grp | awk -F: '{ print $10 }')
-  subkey_S_grp=$(echo $subkeys_edit | awk '{print $2}')
-  subkey_E_grp=$(echo $subkeys_edit | awk '{print $3}')
-  subkey_A_grp=$(echo $subkeys_edit | awk '{print $4}')
+  # 
+  local subkeys_edit=$(gpg2 --no-verbose --with-colons --with-keygrip -k $var_mail | grep -A12 $var_mail | grep grp | awk -F: '{ print $10 }')
+  subkey_S_grp=$(echo $subkeys_edit | awk '{print $1}')
+  subkey_E_grp=$(echo $subkeys_edit | awk '{print $2}')
+  subkey_A_grp=$(echo $subkeys_edit | awk '{print $3}')
   # test if all present
   if [[ -z "$subkey_S_fpr" || -z "$subkey_E_fpr" || -z "$subkey_A_fpr" || -z "$subkey_S_grp" || -z "$subkey_E_grp" || -z "$subkey_A_grp"  ]]; then
     printer  "FAIL ! while getting keyring components, values:" 
     printer $subkey_S_fpr, $subkey_E_fpr, $subkey_A_fpr, $subkey_S_grp, $subkey_E_grp, $subkey_A_grp
     printer
-    exit 1       
+    exit 1 
+  else
+    printer "OK"      
   fi
-  printer "OK, keyring for $var_mail  uid: $key_SC_uid"
-  printer "fingerprint and grip subkey S: $subkey_S_fpr, $subkey_S_grp"
-  printer "fingerprint and grip subkey E: $subkey_E_fpr, $subkey_E_grp"
-  printer "fingerprint and grip subkey A: $subkey_A_fpr, $subkey_A_grp"
   printer "Done."
 }
 publish_keys_cards_to_file(){
  ## Sub key exportation
   # 
   printer
+  printer "-->> Publishing sub keys to main keyring: a S keypair, a E keypair, a A keypair"
+  printer "Keyring after subkeys generation"
+  printf "$ $(gpg2 --with-keygrip -k  --no-verbose $var_mail) \n"                    >> gen_key_report
+  printer
+  printer "OK, keyring for $var_mail  uid: $key_SC_uid"
+  printer "fingerprint and grip subkey S: $subkey_S_fpr, $subkey_S_grp"
+  printer "fingerprint and grip subkey E: $subkey_E_fpr, $subkey_E_grp"
+  printer "fingerprint and grip subkey A: $subkey_A_fpr, $subkey_A_grp"
+  printer
   printer "-->> Sub key exportation to file:"
-  printer "S :     %s $subkey_S_fpr"
-  printer "E :     %s $subkey_E_fpr"
-  printer "A :     %s $subkey_A_fpr"
   gpg2 --export-secret-subkeys $key_SC_fpr > priv.subkeys.txt 	
   gpg2 --export-secret-subkeys $key_SC_fpr | paperkey --output-type raw | dmtxwrite -e 8 -f PDF > priv.subkeys.pdf
-  ls -al priv.subkeys.txt
   echo "Done."
 }
 rm_secret_master_key(){
@@ -274,6 +279,7 @@ import_subkeys_stubs(){
   echo "-->> Sub key importation:" 
   gpg2 --import pub.main.txt
   gpg2 --import priv.subkeys.txt
+  rm /home/$HOME/.gnupg/private-keys-v1.d/$key_E_grp
   echo -e $cmd | gpg2 --command-fd 0 --status-fd 2 --edit-key $key_SC_fpr
   echo  "Done."
   echo
@@ -287,8 +293,8 @@ import_subkeys_stubs(){
 }
 build_gpg.conf(){
  # Minimum modification to gpg.conf 
-  printer
-  printer "-->> Modifying gpg.conf:"
+ printer
+ printer "-->> Modifying gpg.conf:"
   # hidden-to-encrypt
   awk '!/hidden-encrypt-to/'            /home/$USER/.gnupg/gpg.conf > /home/$USER/.gnupg/gpg.conf_temp
   mv  /home/$USER/.gnupg/gpg.conf_temp  /home/$USER/.gnupg/gpg.conf
@@ -308,8 +314,8 @@ build_gpg.conf(){
 }
 do_send_key_server(){
  ## send public key to keyserver
-  echo
-  echo "-->> keyring online:"
+ echo
+ echo "-->> keyring online:"
   # gpg2 --send-keys --keyserver keyserver.ubuntu.com $key_SC_fpr
    #
   #gpg2 --export-ssh-key $key_SC_fpr --yes --armor > output-sshkey.sec 
@@ -368,12 +374,12 @@ main(){
   get_subkeys_id                    || { echo "command8 failed"; exit 1; }
   build_gpg.conf                    || { echo "command9 failed"; exit 1; }
   mv_subkeys_to_card                || { echo "command10 failed"; exit 1; }   # Move the subkeys to the card
-  rm_main_encryption_public_key     || { echo "command11 failed"; exit 1; }   # Remove main encryption subkey	
+  rm_master_keyring_encryption_key     || { echo "command11 failed"; exit 1; }   # Remove main encryption subkey	
   publish_keys_cards_to_file		    || { echo "command12 failed"; exit 1; }   # Export secret subkeys
   rm_secret_master_key				      || { echo "command13 failed"; exit 1; }   # Remove secret master key
   import_subkeys_stubs		          || { echo "command14 failed"; exit 1; }   # Reimport the subkey stubs
   do_send_key_server                || { echo "command15 failed"; exit 1; }  # publishing	
-  update_keyring || { echo "command15 failed"; exit 1; } 
+  #update_keyring || { echo "command15 failed"; exit 1; } 
 
   # Clean up the GPG Keyring.  Keep it tidy.
 
